@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VeloDM</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="ui.css">
+</head>
+<body class="manager">
+<header class="bar">
+  <div class="brand"><img src="icons/32.png" alt=""> VeloDM</div>
+  <div class="tools">
+    <button id="add" class="primary">+ Add URL</button>
+    <button id="resumeAll">Resume all</button>
+    <button id="pauseAll">Pause all</button>
+    <button id="clearDone">Clear finished</button>
+    <button id="openFolder">Open folder</button>
+    <button id="settingsBtn">Settings</button>
+  </div>
+</header>
+
+<div id="hostWarn" class="warn" hidden></div>
+
+<nav class="filters" id="filters">
+  <button data-f="all" class="on">All</button>
+  <button data-f="downloading">Active</button>
+  <button data-f="queued">Queued</button>
+  <button data-f="paused">Paused</button>
+  <button data-f="done">Finished</button>
+  <button data-f="error">Failed</button>
+  <input id="search" type="search" placeholder="Filter by name or URL">
+</nav>
+
+<main>
+  <table class="jobs">
+    <thead><tr><th>File</th><th class="num">Size</th><th>Progress</th><th class="num">Speed</th><th class="num">Time left</th><th></th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <p id="empty" class="empty">No downloads yet. Click a video's download button, right-click a link and choose “Download with VeloDM”, or add a URL.</p>
+</main>
+
+<dialog id="addDlg">
+  <form method="dialog" id="addForm">
+    <h2>Add download</h2>
+    <label>URL <input id="addUrl" type="url" required placeholder="https://…"></label>
+    <label>Save as (optional) <input id="addName" placeholder="Keep the server's name"></label>
+    <label>Engine
+      <select id="addEngine">
+        <option value="auto">Auto: video pages and streams go through the site grabber</option>
+        <option value="direct">Direct file (multi-connection)</option>
+        <option value="ytdlp">Site grabber (YouTube, Vimeo, HLS, DASH…)</option>
+      </select>
+    </label>
+    <div class="row"><button value="cancel" formnovalidate>Cancel</button><button value="ok" class="primary">Download</button></div>
+  </form>
+</dialog>
+
+<dialog id="settingsDlg">
+  <form method="dialog" id="settingsForm">
+    <h2>Settings</h2>
+    <label>Download folder <input id="sDir"></label>
+    <label>Connections per file <input id="sConn" type="number" min="1" max="32"></label>
+    <label>Downloads at once <input id="sMax" type="number" min="1" max="10"></label>
+    <label>Speed limit per download, KB/s (0 = off) <input id="sLimit" type="number" min="0"></label>
+    <label class="check"><input id="sCat" type="checkbox"> Sort into Video, Music, Compressed, Documents, Programs folders</label>
+    <h3>Browser</h3>
+    <label class="check"><input id="sCapture" type="checkbox"> Take over Chrome downloads of these file types</label>
+    <label>File types <textarea id="sTypes" rows="3"></textarea></label>
+    <label>Smallest file to take over, KB <input id="sMinSize" type="number" min="0"></label>
+    <label>Never take over on these sites (one per line) <textarea id="sSkip" rows="3"></textarea></label>
+    <label class="check"><input id="sPanel" type="checkbox"> Show the download button on videos</label>
+    <p class="hint">Hold Alt while clicking a link to let Chrome handle it; hold Shift+Alt to force VeloDM.</p>
+    <div class="row"><button value="cancel" formnovalidate>Cancel</button><button value="ok" class="primary">Save</button></div>
+  </form>
+</dialog>
+
+<script src="common.js"></script>
+<script src="manager.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>VeloDM</title><link rel="stylesheet" href="ui.css"></head>
+<body class="popup">
+<header>
+  <div class="brand"><img src="icons/32.png" alt=""> VeloDM</div>
+  <button id="openMgr">Open manager</button>
+</header>
+<div id="hostWarn" class="warn" hidden></div>
+<section id="pageSec">
+  <h4>This page</h4>
+  <div id="page"><p class="muted">Looking for videos…</p></div>
+</section>
+<section id="streamsSec" hidden>
+  <h4>Media detected in this tab</h4>
+  <div id="streams"></div>
+</section>
+<section>
+  <h4>Downloads</h4>
+  <div id="recent"><p class="muted">Nothing yet.</p></div>
+</section>
+<script src="common.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

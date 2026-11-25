@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "VeloDM",
+  "version": "1.0.0",
+  "description": "Download manager: multi-connection accelerator, video grabber for YouTube and other sites, HLS/DASH, pause/resume.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAotpBf2MnDlJqGQl8NDGUqfwb4GQKGD+Ak9VmcXbtTJ3Oe/y0PHapq62/I7db2MXBWk0Cc9GZKFzKShPJUX1a1pDNJpK6XTUqps7TfU62zVGKxALgynHpcqEILpw06m7MmzMTjai0QhseZNa5IDcUybYH5LwMdR+66EG8e4LWAVV7JfEu+n1MNVhMThGPxYXqSthC/zvbi/a7cMX0vbxb1aVDW1I1LaM/FnMXvPFynMFzmxKaBMBVUDEwsUq68Lx8zsVvxmJW/gwpTygtsDgMr4fpl/ZxdPe+0Lc5gkozwztxndgRbj9i0v+JHUjk4Bu3grppN2RBhXCCVN2i2k11/QIDAQAB",
+  "minimum_chrome_version": "116",
+  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "action": { "default_popup": "popup.html", "default_icon": { "16": "icons/16.png", "32": "icons/32.png" } },
+  "background": { "service_worker": "background.js" },
+  "options_page": "manager.html",
+  "content_scripts": [
+    { "js": ["content.js"], "matches": ["http://*/*", "https://*/*"], "all_frames": true, "run_at": "document_start" }
+  ],
+  "permissions": ["nativeMessaging", "downloads", "webRequest", "cookies", "contextMenus", "tabs", "storage", "notifications", "scripting", "webNavigation"],
+  "host_permissions": ["<all_urls>"]
+}
