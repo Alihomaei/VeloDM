@@ -4,7 +4,21 @@
   if (window.__velodm) return;
   window.__velodm = true;
 
-  const send = (m) => chrome.runtime.sendMessage(m).catch(() => null);
+  // After VeloDM is reloaded/updated, scripts already in open tabs lose their
+  // link to the extension and sendMessage throws or never answers. Detect that
+  // and never wait forever.
+  const STALE = "VeloDM was updated. Refresh this page to use it here.";
+  const send = (m, ms = 200000) => {
+    try {
+      if (!chrome.runtime?.id) return Promise.resolve({ error: STALE });
+      return Promise.race([
+        chrome.runtime.sendMessage(m).catch((e) => ({ error: /context invalidated/i.test(e?.message || "") ? STALE : String(e?.message || e) })),
+        new Promise((r) => setTimeout(() => r({ error: "VeloDM didn't answer in time. Is the VeloDM app/engine running?" }), ms)),
+      ]);
+    } catch {
+      return Promise.resolve({ error: STALE });
+    }
+  };
 
   // ---- modifier keys at click time (Alt = let Chrome handle, Shift+Alt = force VeloDM)
   addEventListener("mousedown", (e) => {
@@ -144,6 +158,13 @@
     b.addEventListener("click", (e) => { e.stopPropagation(); onClick(); menu.style.display = "none"; hide(); });
     return b;
   }
+  function note(t) {
+    const d = document.createElement("div");
+    d.className = "h";
+    d.style.whiteSpace = "normal";
+    d.textContent = t;
+    return d;
+  }
   function header(t) { const d = document.createElement("div"); d.className = "h"; d.textContent = t; return d; }
   const fmtB = (n) => !n ? "" : n > 1 << 30 ? (n / (1 << 30)).toFixed(2) + " GB" : (n / (1 << 20)).toFixed(n > 100 << 20 ? 0 : 1) + " MB";
 
@@ -156,11 +177,13 @@
 
     const page = location.href;
     const src = current?.currentSrc || current?.src || "";
-    const streams = (await send({ cmd: "tabMedia" })) || [];
+    const media = await send({ cmd: "tabMedia" }, 10000);
+    if (media?.error) { menu.replaceChildren(header("Can't reach VeloDM"), note(media.error)); return; }
+    const streams = Array.isArray(media) ? media : [];
     // Try the page itself and any embedded player (Wistia, Vimeo, YouTube…).
     // On sites yt-dlp doesn't know (course platforms etc.) the embed is what works.
     const embeds = [...new Set([...embedsInDocument(), ...streams.filter((s) => s.kind === "embed").map((s) => s.url)])];
-    const known = await send({ cmd: "isVideoPage", url: page });
+    const known = (await send({ cmd: "isVideoPage", url: page }, 10000)) === true;
     const candidates = known ? [page, ...embeds] : [...embeds, page];
     let info = null, url = page;
     for (const c of candidates) {
