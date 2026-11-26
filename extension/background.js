@@ -212,17 +212,16 @@ chrome.downloads.onCreated.addListener(async (item) => {
   const now = Date.now();
   const forced = now < forceUntil;
   if (!forced && now < bypassUntil) return;
-  // Hold Chrome's copy while we decide (the worker may have just been woken
-  // by this event, with no helper connection yet).
+  // Takeover is opt-in (Settings). When it's off, leave Chrome's downloads
+  // completely alone unless the user Shift+Alt-clicked to force VeloDM.
+  const s = await vdmSettings();
+  if (!forced && (!s.capture || !decideCapture(item, url, s))) return;
+  // Hold Chrome's copy while we hand it over (the worker may have just been
+  // woken by this event, with no helper connection yet).
   chrome.downloads.pause(item.id).catch(() => {});
   const giveBack = () => chrome.downloads.resume(item.id).catch(() => {});
-  const s = await vdmSettings();
   if (!hostInfo.ok) await hello();
   if (!hostInfo.ok) return giveBack();
-  if (!forced) {
-    if (!s.capture) return giveBack();
-    if (!decideCapture(item, url, s)) return giveBack();
-  }
   try {
     await chrome.downloads.cancel(item.id);
     await chrome.downloads.erase({ id: item.id });

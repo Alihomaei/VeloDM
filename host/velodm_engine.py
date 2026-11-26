@@ -33,6 +33,7 @@ import tempfile
 import threading
 import time
 import traceback
+import http.cookiejar
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -288,9 +289,6 @@ class Job:
         h = {"User-Agent": self.ua or "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", "Accept": "*/*"}
         if self.referer:
             h["Referer"] = self.referer
-        ck = cookie_header(self.cookies)
-        if ck:
-            h["Cookie"] = ck
         h.update({k: v for k, v in self.headers.items() if k.lower() not in ("range", "host", "content-length")})
         return h
 
@@ -320,11 +318,26 @@ class SegmentedDownload(Job):
         d["connections"] = sum(1 for s in self.segments if s[2] < s[1] - s[0] + 1)
         return d
 
+    def _opener(self):
+        """One cookie jar per job, seeded with the browser's cookies. Sites like
+        Google Drive set cookies while redirecting and loop forever without them."""
+        if getattr(self, "_op", None) is None:
+            jar = http.cookiejar.CookieJar()
+            for c in self.cookies:
+                dom = c.get("domain", "")
+                jar.set_cookie(http.cookiejar.Cookie(
+                    0, c["name"], c["value"], None, False, dom, bool(dom), dom.startswith("."),
+                    c.get("path", "/"), True, bool(c.get("secure")),
+                    int(c["expirationDate"]) if c.get("expirationDate") else None,
+                    not c.get("expirationDate"), None, None, {}))
+            self._op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+        return self._op
+
     def _open(self, start=None, end=None):
         h = self.request_headers()
         if start is not None:
             h["Range"] = f"bytes={start}-" + ("" if end is None else str(end))
-        return urllib.request.urlopen(urllib.request.Request(self.url, headers=h), timeout=30)
+        return self._opener().open(urllib.request.Request(self.url, headers=h), timeout=30)
 
     def probe(self):
         resp = self._open(0, None)

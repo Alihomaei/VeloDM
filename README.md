@@ -10,8 +10,10 @@ It is a Chrome extension plus a native Mac app, built from scratch. No IDM code 
   Instagram, TikTok, Reddit, Twitch and about 1,800 more sites through
   [yt-dlp](https://github.com/yt-dlp/yt-dlp)). You pick a resolution or MP3 from the
   button's menu. It also handles HLS (`.m3u8`) and DASH (`.mpd`) streams.
-- **Takes over browser downloads** of the file types you choose (zip, dmg, mp4, pdf…).
-  Hold Alt while clicking to let Chrome handle a link; hold Shift+Alt to force VeloDM.
+- **Only downloads what you send it:** the video button, right-click → "Download with
+  VeloDM", the popup, or the Mac app. Chrome's normal downloads are left alone. You can
+  optionally turn on takeover of chosen file types (zip, dmg, mp4, pdf…) in Settings.
+  Shift+Alt-click a link to send it to VeloDM once; Alt-click lets Chrome keep it.
 - **Mac app:**
   - Downloads table with a per-connection progress map, speed and time left.
   - Filters by status and category; sorts files into Video, Music, Compressed,

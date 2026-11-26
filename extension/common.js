@@ -1,6 +1,6 @@
 // Shared by background, popup and manager pages.
 const VDM_DEFAULTS = {
-  capture: true,
+  capture: false,   // opt-in: only VeloDM button / context menu by default
   captureTypes:
     "zip rar 7z gz tgz bz2 xz tar dmg iso pkg exe msi apk deb rpm " +
     "mp4 mkv webm mov avi flv m4v wmv 3gp mpg mpeg ts " +
