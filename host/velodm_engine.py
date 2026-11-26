@@ -101,6 +101,17 @@ def is_manifest(url: str) -> bool:
     return bool(re.search(r"\.(m3u8|mpd|f4m)(\?|$)", url, re.I))
 
 
+def needs_referer(url: str, referer: str) -> bool:
+    """Embeds hosted elsewhere (Wistia, Vimeo…) check the embedding site via
+    Referer; same-site pages (YouTube watch pages) don't need one."""
+    if not referer:
+        return False
+    if is_manifest(url):
+        return True
+    host = lambda u: (urllib.parse.urlparse(u).hostname or "").split(".")[-2:]  # noqa: E731
+    return host(url) != host(referer)
+
+
 def log(*a):
     try:
         with open(LOG_FILE, "a") as f:
@@ -558,6 +569,8 @@ class YtDlpDownload(Job):
             "%(progress.total_bytes_estimate)s %(progress.speed)s %(progress.eta)s",
             "--print", "after_move:VELOFILE %(filepath)s",
             "-P", str(folder), "-o", tmpl,
+            # titles that are just an uploaded file name ("clip.mp4") would end up as "clip.mp4.mp4"
+            "--replace-in-metadata", "title", r"\.(mp4|m4v|mov|mkv|webm|avi)$", "",
         ]
         if self.audio_only:
             cmd += ["-f", self.format if self.format != "bv*+ba/b" else "ba/b", "-x", "--audio-format", "mp3"]
@@ -565,11 +578,10 @@ class YtDlpDownload(Job):
             cmd += ["-f", self.format, "-S", "res,fps,ext:mp4:m4a", "--merge-output-format", "mp4/mkv"]
         # Site extractors (YouTube…) pick their own client headers; a browser
         # User-Agent would override them. Only raw manifests need the page's.
-        if is_manifest(self.url):
-            if self.referer:
-                cmd += ["--referer", self.referer]
-            if self.ua:
-                cmd += ["--user-agent", self.ua]
+        if needs_referer(self.url, self.referer):
+            cmd += ["--referer", self.referer]
+        if is_manifest(self.url) and self.ua:
+            cmd += ["--user-agent", self.ua]
         for k, v in self.headers.items():
             if k.lower() not in ("cookie", "referer", "user-agent", "range"):
                 cmd += ["--add-header", f"{k}:{v}"]
@@ -755,11 +767,10 @@ def _probe_run(ytdlp, url, cookies, referer, ua):
     cmd = [ytdlp, "-J", "--no-playlist", "--no-warnings"]
     if cookie_file:
         cmd += ["--cookies", cookie_file]
-    if is_manifest(url):
-        if referer:
-            cmd += ["--referer", referer]
-        if ua:
-            cmd += ["--user-agent", ua]
+    if needs_referer(url, referer):
+        cmd += ["--referer", referer]
+    if is_manifest(url) and ua:
+        cmd += ["--user-agent", ua]
     cmd.append(url)
     try:
         return subprocess.run(cmd, capture_output=True, text=True, timeout=90)

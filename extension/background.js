@@ -159,8 +159,29 @@ function classify(url, ct) {
   return null;
 }
 
+// Embedded players (Wistia, Vimeo…) on pages yt-dlp can't read itself,
+// e.g. course platforms. Their player URL is what yt-dlp understands.
+function embedFromUrl(url) {
+  let m = url.match(/^https?:\/\/(?:fast|embed(?:-ssl)?)\.wistia\.(?:com|net)\/embed\/(?:medias|iframe)\/([a-z0-9]{10})\b/i);
+  if (m) return `https://fast.wistia.net/embed/iframe/${m[1]}`;
+  m = url.match(/^https?:\/\/player\.vimeo\.com\/video\/(\d+)/);
+  if (m) return `https://player.vimeo.com/video/${m[1]}`;
+  return null;
+}
+
+function remember(tabId, key, item) {
+  if (!tabMedia.has(tabId)) tabMedia.set(tabId, new Map());
+  const m = tabMedia.get(tabId);
+  if (m.has(key)) return;
+  m.set(key, { ...item, t: Date.now() });
+  refreshBadge(tabId);
+  chrome.tabs.sendMessage(tabId, { type: "mediaFound", count: m.size }).catch(() => {});
+}
+
 chrome.webRequest.onHeadersReceived.addListener((d) => {
   if (d.tabId < 0 || d.statusCode >= 400) return;
+  const embed = embedFromUrl(d.url);
+  if (embed) return remember(d.tabId, embed, { url: embed, kind: "embed", size: 0, filename: "" });
   if (/^https?:\/\/[^/]*googlevideo\.com\/videoplayback/.test(d.url)) return; // YouTube chunks: use the page URL instead
   const h = Object.fromEntries((d.responseHeaders || []).map((x) => [x.name.toLowerCase(), x.value || ""]));
   const ct = h["content-type"] || "";
@@ -172,15 +193,10 @@ chrome.webRequest.onHeadersReceived.addListener((d) => {
   if (cr && /\/\d+$/.test(cr)) size = +cr.split("/").pop();
   else if (h["content-length"]) size = +h["content-length"];
   if (kind === "file" && size && size < 512 * 1024) return; // ads, beeps, previews
-  if (!tabMedia.has(d.tabId)) tabMedia.set(d.tabId, new Map());
-  const m = tabMedia.get(d.tabId);
   const key = kind === "file" ? d.url.replace(/([?&])(range|rn|rbuf|bytestart|byteend)=[^&]*/gi, "$1") : d.url;
-  if (m.has(key)) return;
   const name = decodeURIComponent(d.url.split(/[?#]/)[0].split("/").pop() || "");
-  m.set(key, { url: d.url, kind, size, ct, filename: /\.\w{2,4}$/.test(name) ? name : "", t: Date.now() });
-  refreshBadge(d.tabId);
-  chrome.tabs.sendMessage(d.tabId, { type: "mediaFound", count: m.size }).catch(() => {});
-}, { urls: ["<all_urls>"], types: ["media", "xmlhttprequest", "other", "object", "sub_frame"] }, ["responseHeaders"]);
+  remember(d.tabId, key, { url: d.url, kind, size, ct, filename: /\.\w{2,4}$/.test(name) ? name : "" });
+}, { urls: ["<all_urls>"], types: ["media", "xmlhttprequest", "other", "object", "sub_frame", "script"] }, ["responseHeaders"]);
 
 chrome.webNavigation.onCommitted.addListener((d) => {
   if (d.frameId === 0) { tabMedia.delete(d.tabId); refreshBadge(d.tabId); }
@@ -303,7 +319,7 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
       case "status": return { host: hostInfo.ok ? hostInfo : await hello(), jobs: lastJobs };
       case "host": return host(m.payload);
       case "download": return startDownload({ ...m, page: m.page || sender.tab?.url });
-      case "probe": return host({ cmd: "probe", url: m.url, cookies: await cookiesFor(m.url), userAgent: navigator.userAgent }, 120000);
+      case "probe": return host({ cmd: "probe", url: m.url, referer: m.referer || "", cookies: await cookiesFor(m.url), userAgent: navigator.userAgent }, 120000);
       case "tabMedia": return [...(tabMedia.get(tabId)?.values() || [])].sort((a, b) => b.t - a.t);
       case "isVideoPage": return isVideoPage(m.url);
       case "openManager": openManager(); return true;

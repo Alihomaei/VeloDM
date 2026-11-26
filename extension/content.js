@@ -42,7 +42,8 @@
       .m button { all: unset; display: flex; justify-content: space-between; gap: 12px; width: calc(100% - 16px); padding: 7px 8px;
                   border-radius: 6px; cursor: pointer; }
       .m button:hover { background: #1f6feb; color: #fff; }
-      .m small { opacity: .65; }
+      .m small { opacity: .65; flex: none; }
+      .m .l { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     </style>
     <div class="b" part="b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg><span class="lbl">Download video</span><span class="x" role="button" title="Hide for this video" aria-label="Close">×</span></div>
     <div class="m"></div>`;
@@ -134,7 +135,11 @@
 
   function item(label, sub, onClick) {
     const b = document.createElement("button");
-    b.append(label);
+    const l = document.createElement("span");
+    l.className = "l";
+    l.textContent = label;
+    b.title = label;
+    b.append(l);
     if (sub) { const s = document.createElement("small"); s.textContent = sub; b.append(s); }
     b.addEventListener("click", (e) => { e.stopPropagation(); onClick(); menu.style.display = "none"; hide(); });
     return b;
@@ -151,10 +156,26 @@
 
     const page = location.href;
     const src = current?.currentSrc || current?.src || "";
-    const [info, streams] = await Promise.all([
-      send({ cmd: "probe", url: page }),
-      send({ cmd: "tabMedia" }),
-    ]);
+    const streams = (await send({ cmd: "tabMedia" })) || [];
+    // Try the page itself and any embedded player (Wistia, Vimeo, YouTube…).
+    // On sites yt-dlp doesn't know (course platforms etc.) the embed is what works.
+    const embeds = [...new Set([...embedsInDocument(), ...streams.filter((s) => s.kind === "embed").map((s) => s.url)])];
+    const known = await send({ cmd: "isVideoPage", url: page });
+    const candidates = known ? [page, ...embeds] : [...embeds, page];
+    let info = null, url = page;
+    for (const c of candidates) {
+      menu.replaceChildren(header(c === page ? "Finding qualities…" : "Checking embedded player…"));
+      const r = await send({ cmd: "probe", url: c, referer: page });
+      if (r && !r.error && r.formats?.length) { info = r; url = c; break; }
+      if (!info) info = r;   // keep the first error to show
+    }
+    // Embedded players often carry a meaningless title (Wistia: the uploaded
+    // file's name); name the file after the page/lesson instead.
+    let filename;
+    if (url !== page && document.title.trim() && (!info?.title || /^[\w-]{12,}(\.\w{2,4})?$/.test(info.title))) {
+      filename = document.title.trim().replace(/[\\/:*?"<>|]+/g, "-").slice(0, 150) + ".mp4";
+    }
+    const dl = (extra) => send({ cmd: "download", url, engine: "ytdlp", page, referer: page, title: info?.title, filename, ...extra });
     const kids = [];
     if (info && !info.error && info.formats?.length) {
       kids.push(header(info.title || document.title));
@@ -168,12 +189,12 @@
       for (const f of [...byH.values()].sort((a, b) => b.height - a.height)) {
         const size = (f.size || 0) + (f.acodec && f.acodec !== "none" ? 0 : audio?.size || 0);
         kids.push(item(`${f.height}p${f.fps > 30 ? f.fps : ""}`, fmtB(size) || f.ext,
-          () => send({ cmd: "download", url: page, engine: "ytdlp", title: info.title, format: `bv*[height=${f.height}]+ba/b[height=${f.height}]/b` })));
+          () => dl({ format: `bv*[height=${f.height}]+ba/b[height=${f.height}]/b` })));
       }
-      if (!byH.size) kids.push(item("Best quality", "", () => send({ cmd: "download", url: page, engine: "ytdlp", title: info.title })));
-      if (audio) kids.push(item("Audio only (MP3)", fmtB(audio.size), () => send({ cmd: "download", url: page, engine: "ytdlp", audioOnly: true, title: info.title })));
+      if (!byH.size) kids.push(item("Best quality", "", () => dl({})));
+      if (audio) kids.push(item("Audio only (MP3)", fmtB(audio.size), () => dl({ audioOnly: true })));
     }
-    const sniffed = (streams || []).filter((s) => s.kind !== "file" || s.size);
+    const sniffed = streams.filter((s) => s.kind !== "embed" && (s.kind !== "file" || s.size));
     if (sniffed.length) {
       kids.push(header("Streams seen on this page"));
       for (const s of sniffed.slice(0, 8)) {
@@ -196,6 +217,27 @@
       }
     }
     menu.replaceChildren(...kids);
+  }
+
+  // Player embeds referenced in this document.
+  function embedsInDocument() {
+    const out = new Set();
+    const wistia = (id) => out.add(`https://fast.wistia.net/embed/iframe/${id}`);
+    for (const k of ["wvideo", "wmediaid", "wistia_media_id"]) {
+      const v = new URLSearchParams(location.search).get(k);
+      if (v && /^[a-z0-9]{10}$/i.test(v)) wistia(v);
+    }
+    for (const e of document.querySelectorAll('[class*="wistia_async_"], [class*="wistia_embed"]')) {
+      const m = String(e.className).match(/wistia_async_([a-z0-9]{10})/i);
+      if (m) wistia(m[1]);
+    }
+    for (const f of document.querySelectorAll("iframe[src]")) {
+      const s = f.src;
+      let m = s.match(/wistia\.(?:net|com)\/embed\/(?:iframe|medias)\/([a-z0-9]{10})/i);
+      if (m) { wistia(m[1]); continue; }
+      if (/player\.vimeo\.com\/video\/\d+|youtube(?:-nocookie)?\.com\/embed\/[\w-]{11}|dailymotion\.com\/embed\/video\//.test(s)) out.add(s.split("#")[0]);
+    }
+    return [...out];
   }
 
   chrome.runtime.onMessage.addListener((m) => {
